@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 from db.mongodb import connect_db, close_db
 from db.repositories import candidate_repository
 
-from api.routes.upload import router as upload_router
-from api.routes.analyze import router as analyze_router
+from api.routes.upload_router import router as upload_router
+from api.routes.analyze_router import router as analyze_router
 
 
 @asynccontextmanager

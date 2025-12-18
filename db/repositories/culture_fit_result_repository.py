@@ -7,7 +7,7 @@ from db.mongodb import get_database
 
 def get_collection():
     """matching_results 컬렉션 반환"""
-    return get_database().culture_fit_result
+    return get_database().culture_fit_results
 
 
 # ============================================================

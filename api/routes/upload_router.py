@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from services.s3_service import generated_presigned_url, s3_client, BUCKET_NAME
-from services.result_service import generate_result_key
+from services.analyze_service import generate_result_key
 
 router = APIRouter(prefix="/api/v1/upload", tags=["upload"])
 
