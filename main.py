@@ -4,6 +4,10 @@ from contextlib import asynccontextmanager
 from db.mongodb import connect_db, close_db
 from db.repositories import candidate_repository
 
+from api.routes.upload import router as upload_router
+from api.routes.analyze import router as analyze_router
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await connect_db()
@@ -19,7 +23,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+app.include_router(upload_router)
+app.include_router(analyze_router)
 
 @app.get("/")
 def read_root():
     return {"message": "CultureFit AI API"}
+
