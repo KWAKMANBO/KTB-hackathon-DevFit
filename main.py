@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 
 from db.mongodb import connect_db, close_db
 from db.repositories import candidate_repository
@@ -23,10 +24,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(upload_router)
 app.include_router(analyze_router)
 
 @app.get("/")
 def read_root():
     return {"message": "CultureFit AI API"}
-

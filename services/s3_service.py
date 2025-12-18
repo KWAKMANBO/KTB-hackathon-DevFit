@@ -6,6 +6,7 @@ import uuid
 
 load_dotenv()
 
+# .env 파일의 환경변수 이름과 일치시킴
 s3_client = boto3.client(
     's3',
     aws_access_key_id=os.getenv('S3_ACCESS_KEY'),
@@ -17,10 +18,35 @@ s3_client = boto3.client(
 BUCKET_NAME = os.getenv('S3_BUCKET_NAME')
 
 
+def list_files_in_prefix(prefix: str) -> list[str]:
+    """
+    S3 버킷의 특정 prefix에 있는 모든 파일 키를 가져옵니다.
+    """
+    keys = []
+    try:
+        # The prefix should end with a '/' to act like a folder
+        if not prefix.endswith('/'):
+            prefix += '/'
+
+        paginator = s3_client.get_paginator('list_objects_v2')
+        pages = paginator.paginate(Bucket=BUCKET_NAME, Prefix=prefix)
+
+        for page in pages:
+            if 'Contents' in page:
+                for obj in page['Contents']:
+                    keys.append(obj['Key'])
+        return keys
+    except Exception as e:
+        print(f"Error listing files from S3: {e}")
+        return []
+
+
 def generated_presigned_url(result_key: str, filename: str, content_type: str, expires_in=3600) -> dict:
-    # 고유한 파일 키 생성
-    ext = filename.split('.')[-1] if '.' in filename else ''
-    file_key = f"{result_key}/{uuid.uuid4()}.{ext}"
+    """
+    Presigned URL을 생성합니다. analyze_router의 로직과 일치하도록 키 생성을 수정했습니다.
+    """
+    # router에서 사용하는 키 형식과 일치시킴
+    file_key = f"{result_key}/{filename}"
 
     presigned_url = s3_client.generate_presigned_url(
         'put_object',
