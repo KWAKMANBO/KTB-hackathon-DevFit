@@ -177,7 +177,7 @@ async def upload(data: RequestAnalyze):
         # "s3_keys": s3_keys
     }
 
-    print(analysis_status)
+    # print(analysis_status)
 
     logger.info(f"✅ result_key 발급: {result_key}")
 

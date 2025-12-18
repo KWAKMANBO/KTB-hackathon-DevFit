@@ -20,13 +20,17 @@ from langchain_core.output_parsers import JsonOutputParser
 logger = logging.getLogger(__name__)
 
 
-def parse_json_with_markdown(text: str) -> dict:
+def parse_json_with_markdown(response) -> dict:
     """마크다운 코드블록이 포함된 JSON 파싱 (robust)"""
-    # AIMessage인 경우 content 추출
-    if hasattr(text, 'content'):
-        text = text.content
+    original_response = response  # 디버깅용 원본 저장
 
-    text = str(text).strip()
+    # AIMessage 또는 content 속성이 있는 객체 처리
+    if hasattr(response, 'content'):
+        text = response.content
+    else:
+        text = str(response)
+
+    text = text.strip()
 
     # ```json ... ``` 또는 ``` ... ``` 제거
     if "```json" in text:
@@ -43,17 +47,50 @@ def parse_json_with_markdown(text: str) -> dict:
     if first_brace != -1:
         text = text[first_brace:]
 
-    # raw_decode로 첫 번째 JSON 객체만 파싱 (extra data 무시)
+    # JSON 객체 끝점 찾기
+    last_brace = text.rfind('}')
+    if last_brace != -1:
+        text = text[:last_brace + 1]
+
+    # Trailing comma 제거 (LLM이 자주 만드는 오류)
+    text = re.sub(r',\s*}', '}', text)
+    text = re.sub(r',\s*]', ']', text)
+
+    # JSON 파싱 시도 (여러 방법)
     try:
+        # 1차 시도: 표준 json.loads
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    try:
+        # 2차 시도: raw_decode (extra data 무시)
         decoder = json.JSONDecoder()
         result, _ = decoder.raw_decode(text)
         return result
     except json.JSONDecodeError as e:
-        logger.error(f"=" * 60)
-        logger.error(f"JSON 파싱 실패: {e}")
-        logger.error(f"=" * 60)
-        logger.error(f"전체 응답 텍스트:\n{text}")
-        logger.error(f"=" * 60)
+        logger.error("=" * 70)
+        logger.error(f"[company_chain] JSON 파싱 실패: {e}")
+        logger.error("=" * 70)
+        logger.error(f"에러 위치: line {e.lineno}, column {e.colno}")
+        logger.error("-" * 70)
+
+        # 에러 위치 주변 텍스트 표시
+        lines = text.split('\n')
+        error_line = e.lineno - 1
+        start_line = max(0, error_line - 2)
+        end_line = min(len(lines), error_line + 3)
+
+        logger.error("에러 위치 주변:")
+        for i in range(start_line, end_line):
+            prefix = ">>> " if i == error_line else "    "
+            line_content = lines[i][:200] + "..." if len(lines[i]) > 200 else lines[i]
+            logger.error(f"{prefix}{i+1:4d} | {line_content}")
+
+        logger.error("-" * 70)
+        logger.error(f"원본 응답 타입: {type(original_response).__name__}")
+        logger.error(f"처리된 텍스트 길이: {len(text)} chars")
+        logger.error("=" * 70)
         raise
 
 from apiv2.langchain_pipeline.config import (
