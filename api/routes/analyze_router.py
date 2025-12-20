@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi.responses import JSONResponse
 from db.repositories import *
 from schema.request_analyze import *
 from services.analyze_service import *
@@ -229,8 +230,15 @@ async def start_analysis(result_key: str, background_tasks: BackgroundTasks):
 
 
 @router.get("/status/{result_key}")
-async def get_status(result_key: str, timeout: int = 30):
-    """3단계: Long Polling으로 상태 확인"""
+async def get_status(result_key: str, timeout: int = 15):
+    """3단계: Long Polling으로 상태 확인
+
+    Response Status Codes:
+        200: 분석 완료 (completed)
+        202: 분석 진행 중 (processing/timeout)
+        404: result_key를 찾을 수 없음
+        500: 분석 실패 (failed)
+    """
     if result_key not in analysis_status:
         raise HTTPException(status_code=404, detail="result_key not found")
 
@@ -240,15 +248,37 @@ async def get_status(result_key: str, timeout: int = 30):
     while elapsed < timeout:
         status = analysis_status.get(result_key)
 
-        # 완료/실패 시 즉시 반환
-        if status["status"] in ["completed", "failed"]:
-            return status
+        # 완료 시 200 OK 반환 - MongoDB에서 조회하여 반환
+        if status["status"] == "completed":
+            result = status.get("result", {})
+            company_id = result.get("company_id")
+            candidate_id = result.get("candidate_id")
+            matching_id = result.get("matching_id")
+
+            # MongoDB에서 각 데이터 조회
+            company_analysis = await company_repository.get_company(company_id) if company_id else None
+            candidate_analysis = await candidate_repository.get_candidate(candidate_id) if candidate_id else None
+            culture_fit_result = await culture_fit_result_repository.get_matching_result(matching_id) if matching_id else None
+
+            response_data = {
+                "status": "completed",
+                "progress": 100,
+                "message": "분석 완료",
+                "company_analysis": company_analysis,
+                "candidate_analysis": candidate_analysis,
+                "culture_fit_result": culture_fit_result
+            }
+            return JSONResponse(status_code=200, content=response_data)
+
+        # 실패 시 500 Internal Server Error 반환
+        if status["status"] == "failed":
+            return JSONResponse(status_code=500, content=status)
 
         await asyncio.sleep(poll_interval)
         elapsed += poll_interval
 
-    # 타임아웃 시 현재 상태 반환
-    return analysis_status.get(result_key)
+    # 타임아웃 시 202 Accepted (아직 처리 중) 반환
+    return JSONResponse(status_code=202, content=analysis_status.get(result_key))
 
 
 @router.get("/result/{result_key}")
